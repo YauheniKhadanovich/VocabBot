@@ -28,6 +28,7 @@ public class BotService : IBotService
             HandlePollingErrorAsync,
             cancellationToken: cts.Token
         );
+
         if (!_vocabularyFacade.TryInitialize())
         {
             Console.WriteLine("Can't initialize model");
@@ -39,7 +40,7 @@ public class BotService : IBotService
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        if (update.Type != UpdateType.Message || update.Message?.Text == null)
+        if (update.Type != UpdateType.Message || update.Message?.Text == null || update.Message?.Text.Length == 0)
         {
             return;
         }
@@ -55,26 +56,35 @@ public class BotService : IBotService
             return;
         }
 
-        if (await TryExecuteCommand(originMessage))
+        if (IsCommand(originMessage))
         {
-            Console.WriteLine($"{userName} : command {originMessage.Text} executed.");
-            return;
+            if (await TryExecuteCommand(originMessage))
+            {
+                Console.WriteLine($"{userName} : command {originMessage.Text} executed.");
+                return;
+            }
         }
-
-        if (!_currentStateFacade.IsStarted)
+        else
         {
-            Console.WriteLine("Bot disabled.");
-            return;
-        }
+            if (!_currentStateFacade.IsStarted)
+            {
+                Console.WriteLine("Bot disabled.");
+                return;
+            }
 
-        var currentWord =
-            _vocabularyFacade.Dictionary.Keys.ToArray()[new Random().Next(0, _vocabularyFacade.Dictionary.Count)];
-        await botClient.SendTextMessageAsync(chatId, currentWord, cancellationToken: cancellationToken);
+            var currentWord = _vocabularyFacade.Dictionary.Keys.ToArray()[new Random().Next(0, _vocabularyFacade.Dictionary.Count)];
+            await botClient.SendTextMessageAsync(chatId, currentWord, cancellationToken: cancellationToken);
+        }
     }
 
     async Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception,
         CancellationToken cancellationToken)
     {
+    }
+
+    private bool IsCommand(Message message)
+    {
+        return message.Text![0] == '/';
     }
 
     async Task<bool> TryExecuteCommand(Message message)
@@ -102,6 +112,7 @@ public class BotService : IBotService
                 await _bot.SendTextMessageAsync(message.Chat.Id, "Bye!");
                 return true;
             default:
+                await _bot.SendTextMessageAsync(message.Chat.Id, "Unsupported command");
                 return false;
         }
     }

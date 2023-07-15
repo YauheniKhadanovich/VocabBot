@@ -8,5 +8,6 @@ public static class Const
     {
         public const string StartBot = "/start";
         public const string StopBot = "/stop";
+        public const string HelpBot = "/help";
     }
 }
