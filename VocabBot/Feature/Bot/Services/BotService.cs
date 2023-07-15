@@ -39,54 +39,6 @@ public class BotService : IBotService
         Console.WriteLine("Initialization done!");
     }
 
-    async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-    {
-        if (update.Type != UpdateType.Message || update.Message?.Text == null || update.Message?.Text.Length == 0)
-        {
-            return;
-        }
-
-        await OnMessageReceived(update.Message!);
-    }
-
-    async Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception,
-        CancellationToken cancellationToken)
-    {
-    }
-
-    private bool IsCommand(Message message)
-    {
-        return message.Text![0] == '/';
-    }
-
-    async Task<bool> TryExecuteCommand(Message message)
-    {
-        switch (message.Text!.ToLowerInvariant())
-        {
-            case Const.Commands.StartBot:
-                if (_currentStateFacade.IsStarted)
-                {
-                    await _bot.SendTextMessageAsync(message.Chat.Id, "I've already started =)");
-                    return false;
-                }
-
-                _currentStateFacade.StartBot(message.Chat.Id);
-                return true;
-            case Const.Commands.StopBot:
-                if (!_currentStateFacade.IsStarted)
-                {
-                    await _bot.SendTextMessageAsync(message.Chat.Id, "I've already stopped =)");
-                    return false;
-                }
-
-                _currentStateFacade.StopBot(message.Chat.Id);
-                return true;
-            default:
-                await _bot.SendTextMessageAsync(message.Chat.Id, "Unsupported command");
-                return false;
-        }
-    }
-
     private void OnBotStarted(long chatId)
     {
         var currentWord = _vocabularyFacade.Dictionary.Keys.ToArray()[new Random().Next(0, _vocabularyFacade.Dictionary.Count)];
@@ -95,24 +47,79 @@ public class BotService : IBotService
         var taskNextWord = AskNextWord(chatId);
         taskNextWord.Wait();
     }
+    
+    async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+    {
+        switch (update.Type)
+        {
+            case UpdateType.CallbackQuery:
+                if (update.CallbackQuery is { Data: not null, Message: not null })
+                {
+                    await OnCallbackQueryReceived(update.CallbackQuery!);
+                }
+                break;
+            case UpdateType.Message:
+                if (update.Message is { Text.Length: > 0 })
+                {
+                    await OnMessageReceived(update.Message!);
+                }
+                break;
+        }
+    }
+
+    async Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+    {
+    }
+
+    async Task<bool> TryExecuteCommand(string text, long chatId)
+    {
+        switch (text.ToLowerInvariant())
+        {
+            case Const.Commands.StartBot:
+                if (_currentStateFacade.IsStarted)
+                {
+                    await _bot.SendTextMessageAsync(chatId, "I've already started =)");
+                    return false;
+                }
+
+                _currentStateFacade.StartBot(chatId);
+                return true;
+            case Const.Commands.StopBot:
+                if (!_currentStateFacade.IsStarted)
+                {
+                    await _bot.SendTextMessageAsync(chatId, "I've already stopped =)");
+                    return false;
+                }
+
+                _currentStateFacade.StopBot(chatId);
+                return true;
+            default:
+                await _bot.SendTextMessageAsync(chatId, "Unsupported command");
+                return false;
+        }
+    }
 
     private async Task OnMessageReceived(Message message)
     {
         var userName = message.From == null ? "<null user>" : message.From.Username ?? "<empty userName>";
-        var isCorrectMessage = message is { Type: MessageType.Text, Text: not null };
 
-        if (!isCorrectMessage)
-        {
-            Console.WriteLine($"{userName} : incorrect message.");
-            return;
-        }
+        await ProcessMessage(userName, message.Text!, message.Chat.Id);
+    }
+    
+    private async Task OnCallbackQueryReceived(CallbackQuery callbackQuery)
+    {
+        var userName = callbackQuery.From.Username ?? "<empty userName>";
 
-        if (IsCommand(message))
+        await ProcessMessage(userName, callbackQuery.Data!, callbackQuery.Message!.Chat.Id);
+    }
+
+    private async Task ProcessMessage(string userName, string text, long chatId)
+    {
+        if (Const.Commands.IsCommand(text))
         {
-            if (await TryExecuteCommand(message))
+            if (await TryExecuteCommand(text, chatId))
             {
-                Console.WriteLine($"{userName} : command {message.Text} executed.");
-                return;
+                Console.WriteLine($"{userName} : command {text} executed.");
             }
         }
         else
@@ -123,28 +130,31 @@ public class BotService : IBotService
                 return;
             }
 
-            await AskNextWord(message.Chat.Id);
+            await AskNextWord(chatId);
         }
     }
 
     private async Task AskNextWord(long chatId)
     {
-        var question = _vocabularyFacade.GetRandomQuestion();
-        var answers = question.Value; 
-        ReplyKeyboardMarkup replyKeyboardMarkup = new(new[]
+        var (key, answers) = _vocabularyFacade.GetRandomQuestion();
+
+        InlineKeyboardMarkup inlineKeyboard = new(new[]
         {
-            new KeyboardButton[] { answers[0] },
-            new KeyboardButton[] { answers[1] },
-            new KeyboardButton[] { answers[2] },
-            new KeyboardButton[] { answers[3] },
-        })
-        {
-            ResizeKeyboard = true
-        };
+            new []
+            {
+                InlineKeyboardButton.WithCallbackData(text: answers[0], callbackData: answers[0]),
+                InlineKeyboardButton.WithCallbackData(text: answers[1], callbackData: answers[1]),
+            },
+            new []
+            {
+                InlineKeyboardButton.WithCallbackData(text: answers[2], callbackData: answers[2]),
+                InlineKeyboardButton.WithCallbackData(text: answers[3], callbackData: answers[3]),
+            },
+        });
 
         await _bot.SendTextMessageAsync(
             chatId: chatId,
-            text: $"{question.Key}",
-            replyMarkup: replyKeyboardMarkup);
+            text: $"{key}",
+            replyMarkup: inlineKeyboard);
     }
 }

@@ -9,5 +9,11 @@ public static class Const
         public const string StartBot = "/start";
         public const string StopBot = "/stop";
         public const string HelpBot = "/help";
+
+        private const char CommandFirstChar = '/';
+        public static bool IsCommand(string text)
+        {
+            return text.StartsWith(CommandFirstChar);
+        }
     }
 }
