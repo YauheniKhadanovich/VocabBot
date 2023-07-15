@@ -20,4 +20,9 @@ public class VocabularyFacade : IVocabularyFacade
     {
         return _vocabularyModel.TryInitialize();
     }
+
+    public KeyValuePair<string, List<string>> GetRandomQuestion()
+    {
+        return _vocabularyModel.GetRandomQuestion();
+    }
 }

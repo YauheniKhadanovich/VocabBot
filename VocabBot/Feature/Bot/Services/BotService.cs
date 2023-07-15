@@ -1,6 +1,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 using VocabBot.Core;
 using VocabBot.Feature.Bot.Services.Impl;
 using VocabBot.Modules.CurrentState.Facade;
@@ -45,36 +46,7 @@ public class BotService : IBotService
             return;
         }
 
-        var chatId = update.Message.Chat.Id;
-        var originMessage = update.Message;
-        var userName = update.Message.From == null ? "<null user>" : update.Message.From.Username ?? "<empty userName>";
-        var isCorrectMessage = update.Message is { Type: MessageType.Text, Text: not null };
-
-        if (!isCorrectMessage)
-        {
-            Console.WriteLine($"{userName} : incorrect message.");
-            return;
-        }
-
-        if (IsCommand(originMessage))
-        {
-            if (await TryExecuteCommand(originMessage))
-            {
-                Console.WriteLine($"{userName} : command {originMessage.Text} executed.");
-                return;
-            }
-        }
-        else
-        {
-            if (!_currentStateFacade.IsStarted)
-            {
-                Console.WriteLine("Bot disabled.");
-                return;
-            }
-
-            var currentWord = _vocabularyFacade.Dictionary.Keys.ToArray()[new Random().Next(0, _vocabularyFacade.Dictionary.Count)];
-            await botClient.SendTextMessageAsync(chatId, currentWord, cancellationToken: cancellationToken);
-        }
+        await OnMessageReceived(update.Message!);
     }
 
     async Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception,
@@ -89,7 +61,7 @@ public class BotService : IBotService
 
     async Task<bool> TryExecuteCommand(Message message)
     {
-        switch (message.Text.ToLowerInvariant())
+        switch (message.Text!.ToLowerInvariant())
         {
             case Const.Commands.StartBot:
                 if (_currentStateFacade.IsStarted)
@@ -98,8 +70,7 @@ public class BotService : IBotService
                     return false;
                 }
 
-                _currentStateFacade.StartBot();
-                await _bot.SendTextMessageAsync(message.Chat.Id, "Let's do it!");
+                _currentStateFacade.StartBot(message.Chat.Id);
                 return true;
             case Const.Commands.StopBot:
                 if (!_currentStateFacade.IsStarted)
@@ -108,8 +79,7 @@ public class BotService : IBotService
                     return false;
                 }
 
-                _currentStateFacade.StopBot();
-                await _bot.SendTextMessageAsync(message.Chat.Id, "Bye!");
+                _currentStateFacade.StopBot(message.Chat.Id);
                 return true;
             default:
                 await _bot.SendTextMessageAsync(message.Chat.Id, "Unsupported command");
@@ -117,7 +87,64 @@ public class BotService : IBotService
         }
     }
 
-    private void OnBotStarted()
+    private void OnBotStarted(long chatId)
     {
+        var currentWord = _vocabularyFacade.Dictionary.Keys.ToArray()[new Random().Next(0, _vocabularyFacade.Dictionary.Count)];
+        var task = _bot.SendTextMessageAsync(chatId, currentWord);
+        task.Wait();
+        var taskNextWord = AskNextWord(chatId);
+        taskNextWord.Wait();
+    }
+
+    private async Task OnMessageReceived(Message message)
+    {
+        var userName = message.From == null ? "<null user>" : message.From.Username ?? "<empty userName>";
+        var isCorrectMessage = message is { Type: MessageType.Text, Text: not null };
+
+        if (!isCorrectMessage)
+        {
+            Console.WriteLine($"{userName} : incorrect message.");
+            return;
+        }
+
+        if (IsCommand(message))
+        {
+            if (await TryExecuteCommand(message))
+            {
+                Console.WriteLine($"{userName} : command {message.Text} executed.");
+                return;
+            }
+        }
+        else
+        {
+            if (!_currentStateFacade.IsStarted)
+            {
+                Console.WriteLine("Bot disabled.");
+                return;
+            }
+
+            await AskNextWord(message.Chat.Id);
+        }
+    }
+
+    private async Task AskNextWord(long chatId)
+    {
+        var question = _vocabularyFacade.GetRandomQuestion();
+        var answers = question.Value; 
+        ReplyKeyboardMarkup replyKeyboardMarkup = new(new[]
+        {
+            new KeyboardButton[] { answers[0] },
+            new KeyboardButton[] { answers[1] },
+            new KeyboardButton[] { answers[2] },
+            new KeyboardButton[] { answers[3] },
+        })
+        {
+            ResizeKeyboard = true
+        };
+
+        await _bot.SendTextMessageAsync(
+            chatId: chatId,
+            text: $"{question.Key}",
+            replyMarkup: replyKeyboardMarkup);
     }
 }

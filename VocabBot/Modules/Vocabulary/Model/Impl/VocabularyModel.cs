@@ -30,6 +30,22 @@ public class VocabularyModel : IVocabularyModel
         }
     }
 
+    public KeyValuePair<string, List<string>> GetRandomQuestion()
+    {
+        var randomPair = Dictionary.ToArray()[new Random().Next(0, Dictionary.Count)];
+        var word = randomPair.Key;
+        var trueAnswers = randomPair.Value;
+        var trueAnswer = randomPair.Value.ToArray()[new Random().Next(0, randomPair.Value.Count)];
+        var wrongAnswers = Dictionary
+            .Select(item => item.Value)
+            .SelectMany(item => item)
+            .Where(item => !trueAnswers.Contains(item))
+            .Distinct();
+        var options = wrongAnswers.OrderBy(_=>new Random().Next()).Take(3).ToList();
+        options.Add(trueAnswer);
+        return new KeyValuePair<string, List<string>>(word, options);
+    }
+
     private void ProcessLine(string line)
     {
         var fixedLine = line.Trim().Replace("--", "#");

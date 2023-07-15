@@ -5,30 +5,30 @@ namespace VocabBot.Modules.CurrentState.Facade.Impl;
 
 public class CurrentStateFacade : ICurrentStateFacade
 {
-    public event Action BotStarted = delegate { };
+    public event Action<long> BotStarted = delegate { };
 
     private ICurrentStateModel _currentStateModel;
     // TODO: DI
     public CurrentStateFacade()
     {
-        _currentStateModel = new CurrentStateModelModel();
+        _currentStateModel = new CurrentStateModel();
         _currentStateModel.BotStarted += OnBotStarted;
     }
 
     public bool IsStarted => _currentStateModel.IsStarted;
     
-    public void StartBot()
+    public void StartBot(long chatId)
     {
-        _currentStateModel.StartBot();
+        _currentStateModel.StartBot(chatId);
     }
 
-    public void StopBot()
+    public void StopBot(long chatId)
     {
-        _currentStateModel.StopBot();
+        _currentStateModel.StopBot(chatId);
     }
     
-    private void OnBotStarted()
+    private void OnBotStarted(long chatId)
     {
-        BotStarted.Invoke();
+        BotStarted.Invoke(chatId);
     }
 }
