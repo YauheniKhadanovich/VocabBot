@@ -6,6 +6,7 @@ using VocabBot.Core;
 using VocabBot.Feature.Bot.Services.Impl;
 using VocabBot.Modules.CurrentState.Facade;
 using VocabBot.Modules.CurrentState.Facade.Impl;
+using VocabBot.Modules.CurrentState.Model.Data;
 using VocabBot.Modules.Vocabulary.Facade;
 using VocabBot.Modules.Vocabulary.Facade.Impl;
 
@@ -78,13 +79,13 @@ public class BotService : IBotService
         {
             return false;
         }
-        
+
         Console.WriteLine($"chat: {chatId} user: {userName} : command {commandText}.");
-        
+
         switch (commandText)
         {
             case Const.Commands.StartBot:
-                if (_currentStateFacade.IsStarted)
+                if (_currentStateFacade.IsStarted(chatId))
                 {
                     await _bot.SendTextMessageAsync(chatId, "I've already started =)");
                     return false;
@@ -93,7 +94,7 @@ public class BotService : IBotService
                 _currentStateFacade.StartBot(chatId);
                 return true;
             case Const.Commands.StopBot:
-                if (!_currentStateFacade.IsStarted)
+                if (!_currentStateFacade.IsStarted(chatId))
                 {
                     await _bot.SendTextMessageAsync(chatId, "I've already stopped =)");
                     return false;
@@ -111,52 +112,77 @@ public class BotService : IBotService
     {
         var userName = message.From == null ? "<null user>" : message.From.Username ?? "<empty userName>";
 
-        await ProcessMessage(userName, message.Text!, message.Chat.Id);
+        await TryExecuteCommand(userName, message.Text!, message.Chat.Id);
     }
 
     private async Task OnCallbackQueryReceived(CallbackQuery callbackQuery)
     {
         var userName = callbackQuery.From.Username ?? "<empty userName>";
 
-        await ProcessMessage(userName, callbackQuery.Data!, callbackQuery.Message!.Chat.Id);
-    }
-
-    private async Task ProcessMessage(string userName, string text, long chatId)
-    {
-        if (await TryExecuteCommand(userName, text, chatId))
+        if (await TryExecuteCommand(userName, callbackQuery.Data!, callbackQuery.Message!.Chat.Id))
         {
             return;
         }
 
-        if (!_currentStateFacade.IsStarted)
+        if (!_currentStateFacade.IsStarted(callbackQuery.Message!.Chat.Id))
         {
             return;
         }
-        
-        await AskNextWord(chatId);
+
+        if (_currentStateFacade.GetCurrentState(callbackQuery.Message!.Chat.Id).State == State.WaitingForAnswer &&
+            _currentStateFacade.GetCurrentState(callbackQuery.Message!.Chat.Id).AnsweredMessageId == callbackQuery.Message.MessageId)
+        {
+            await CheckAnswer(callbackQuery.Message!.Chat.Id, callbackQuery.From.FirstName, callbackQuery.Data!);
+            await AskNextWord(callbackQuery.Message!.Chat.Id);
+        }
     }
 
     private async Task AskNextWord(long chatId)
+    {
+        var (key, answers) = _vocabularyFacade.GetRandomQuestion();
+
+        InlineKeyboardMarkup inlineKeyboard = new(new[]
         {
-            var (key, answers) = _vocabularyFacade.GetRandomQuestion();
-
-            InlineKeyboardMarkup inlineKeyboard = new(new[]
+            new[]
             {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData(text: answers[0], callbackData: answers[0]),
-                    InlineKeyboardButton.WithCallbackData(text: answers[1], callbackData: answers[1]),
-                },
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData(text: answers[2], callbackData: answers[2]),
-                    InlineKeyboardButton.WithCallbackData(text: answers[3], callbackData: answers[3]),
-                },
-            });
+                InlineKeyboardButton.WithCallbackData(text: answers[0], callbackData: answers[0]),
+                InlineKeyboardButton.WithCallbackData(text: answers[1], callbackData: answers[1]),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: answers[2], callbackData: answers[2]),
+                InlineKeyboardButton.WithCallbackData(text: answers[3], callbackData: answers[3]),
+            },
+        });
 
+        var message = await _bot.SendTextMessageAsync(
+            chatId: chatId,
+            text: $"{key}",
+            replyMarkup: inlineKeyboard);
+
+        _currentStateFacade.WaitForAnswer(chatId, key, message.MessageId);
+    }
+
+    private async Task CheckAnswer(long chatId, string answeredUserName, string answer)
+    {
+        var currentState = _currentStateFacade.GetCurrentState(chatId);
+        var question = currentState.AskedWord;
+
+        if (_vocabularyFacade.IsCorrectAnswer(question, answer))
+        {
             await _bot.SendTextMessageAsync(
-                chatId: chatId,
-                text: $"{key}",
-                replyMarkup: inlineKeyboard);
+                chatId,
+                $"*User*: _{answeredUserName}_ \\ *Answer*: _{answer}_ \\ *Correct* ",
+                parseMode: ParseMode.MarkdownV2
+            );
+        }
+        else
+        {
+            await _bot.SendTextMessageAsync(
+                chatId,
+                $"*User*: _{answeredUserName}_ \\ *Answer*: _{answer}_ \\ *Mistake* ",
+                parseMode: ParseMode.MarkdownV2
+            );
         }
     }
+}

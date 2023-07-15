@@ -6,8 +6,6 @@ namespace VocabBot.Modules.Vocabulary.Facade.Impl;
 public class VocabularyFacade : IVocabularyFacade
 {
     private IVocabularyModel _vocabularyModel;
-
-    public Dictionary<string, List<string>> Dictionary => _vocabularyModel.Dictionary;
     
     // TODO: DI
     public VocabularyFacade()
@@ -24,5 +22,10 @@ public class VocabularyFacade : IVocabularyFacade
     public KeyValuePair<string, List<string>> GetRandomQuestion()
     {
         return _vocabularyModel.GetRandomQuestion();
+    }
+
+    public bool IsCorrectAnswer(string question, string answer)
+    {
+        return _vocabularyModel.IsCorrectAnswer(question, answer);
     }
 }

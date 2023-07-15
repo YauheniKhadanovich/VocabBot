@@ -4,7 +4,7 @@ public class VocabularyModel : IVocabularyModel
 { 
     private readonly string _vocabularyFilePath = @"/Users/yauheni/Work/English/Vocabulary";
 
-    public Dictionary<string, List<string>> Dictionary { get; } = new();
+    private Dictionary<string, List<string>> _dictionary { get; } = new();
 
     public bool TryInitialize()
     {
@@ -32,11 +32,11 @@ public class VocabularyModel : IVocabularyModel
 
     public KeyValuePair<string, List<string>> GetRandomQuestion()
     {
-        var randomPair = Dictionary.ToArray()[new Random().Next(0, Dictionary.Count)];
+        var randomPair = _dictionary.ToArray()[new Random().Next(0, _dictionary.Count)];
         var word = randomPair.Key;
         var trueAnswers = randomPair.Value;
         var trueAnswer = randomPair.Value.ToArray()[new Random().Next(0, randomPair.Value.Count)];
-        var wrongAnswers = Dictionary
+        var wrongAnswers = _dictionary
             .Select(item => item.Value)
             .SelectMany(item => item)
             .Where(item => !trueAnswers.Contains(item))
@@ -46,6 +46,11 @@ public class VocabularyModel : IVocabularyModel
         return new KeyValuePair<string, List<string>>(word, options);
     }
 
+    public bool IsCorrectAnswer(string question, string answer)
+    {
+        return _dictionary[question].Contains(answer);
+    }
+    
     private void ProcessLine(string line)
     {
         var fixedLine = line.Trim().Replace("--", "#");
@@ -58,6 +63,6 @@ public class VocabularyModel : IVocabularyModel
 
         var key = pair[0].Trim().ToLowerInvariant();
         var values = pair[1].Split(",").ToList().Select(item => item.Trim().ToLowerInvariant()).ToList();
-        Dictionary.Add(key, values);
+        _dictionary.Add(key, values);
     }
 }
