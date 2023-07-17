@@ -14,6 +14,9 @@ namespace VocabBot.Feature.Bot.Services;
 
 public class BotService : IBotService
 {
+    /*
+     * TODO: DI
+     */
     private ICurrentStateFacade _currentStateFacade = new CurrentStateFacade();
     private IVocabularyFacade _vocabularyFacade = new VocabularyFacade();
     private TelegramBotClient _bot = null!;
@@ -42,8 +45,7 @@ public class BotService : IBotService
 
     private void OnBotStarted(long chatId)
     {
-        var taskNextWord = AskNextWord(chatId);
-        taskNextWord.Wait();
+        AskNextWord(chatId).WaitAsync(_bot.Timeout);
     }
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -132,7 +134,7 @@ public class BotService : IBotService
         if (_currentStateFacade.GetCurrentState(callbackQuery.Message!.Chat.Id).State == State.WaitingForAnswer &&
             _currentStateFacade.GetCurrentState(callbackQuery.Message!.Chat.Id).AnsweredMessageId == callbackQuery.Message.MessageId)
         {
-            await CheckAnswer(callbackQuery.Message!.Chat.Id, callbackQuery.From.FirstName, callbackQuery.Data!);
+            await CheckAnswer(callbackQuery.Message!.Chat.Id, callbackQuery.From.FirstName,callbackQuery.From.Id, callbackQuery.Data!);
             await AskNextWord(callbackQuery.Message!.Chat.Id);
         }
     }
@@ -163,7 +165,7 @@ public class BotService : IBotService
         _currentStateFacade.WaitForAnswer(chatId, key, message.MessageId);
     }
 
-    private async Task CheckAnswer(long chatId, string answeredUserName, string answer)
+    private async Task CheckAnswer(long chatId, string answeredUserName, long answeredUserid, string answer)
     {
         var currentState = _currentStateFacade.GetCurrentState(chatId);
         var question = currentState.AskedWord;
@@ -172,7 +174,7 @@ public class BotService : IBotService
         {
             await _bot.SendTextMessageAsync(
                 chatId,
-                $"*User*: _{answeredUserName}_ \\ *Answer*: _{answer}_ \\ *Correct* ",
+                $"*User*: [_{answeredUserName}_](tg://user?id={answeredUserid}) \\\n*Answer*: _{answer}_ \\\n*Correct\\!*",
                 parseMode: ParseMode.MarkdownV2
             );
         }
@@ -180,7 +182,7 @@ public class BotService : IBotService
         {
             await _bot.SendTextMessageAsync(
                 chatId,
-                $"*User*: _{answeredUserName}_ \\ *Answer*: _{answer}_ \\ *Mistake* ",
+                $"*User*: [_{answeredUserName}_](tg://user?id={answeredUserid}) \\\n*Answer*: _{answer}_ \\\n*Mistake\\!*",
                 parseMode: ParseMode.MarkdownV2
             );
         }

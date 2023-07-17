@@ -63,6 +63,13 @@ public class VocabularyModel : IVocabularyModel
 
         var key = pair[0].Trim().ToLowerInvariant();
         var values = pair[1].Split(",").ToList().Select(item => item.Trim().ToLowerInvariant()).ToList();
-        _dictionary.Add(key, values);
+        if (_dictionary.ContainsKey(key))
+        {
+            Console.WriteLine($"Duplication: {key}");
+        }
+        else
+        {
+            _dictionary.Add(key, values);
+        }
     }
 }
