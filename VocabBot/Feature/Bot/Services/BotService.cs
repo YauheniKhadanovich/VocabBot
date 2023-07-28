@@ -14,12 +14,15 @@ namespace VocabBot.Feature.Bot.Services;
 
 public class BotService : IBotService
 {
-    /*
-     * TODO: DI
-     */
-    private ICurrentStateFacade _currentStateFacade = new CurrentStateFacade();
-    private IVocabularyFacade _vocabularyFacade = new VocabularyFacade();
+    private ICurrentStateFacade _currentStateFacade;
+    private IVocabularyFacade _vocabularyFacade;
     private TelegramBotClient _bot = null!;
+
+    public BotService(ICurrentStateFacade currentStateFacade, IVocabularyFacade vocabularyFacade)
+    {
+        _currentStateFacade = currentStateFacade;
+        _vocabularyFacade = vocabularyFacade;
+    }
 
     public void Initialize()
     {

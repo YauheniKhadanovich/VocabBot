@@ -1,5 +1,4 @@
 using VocabBot.Modules.Vocabulary.Model;
-using VocabBot.Modules.Vocabulary.Model.Impl;
 
 namespace VocabBot.Modules.Vocabulary.Facade.Impl;
 
@@ -7,12 +6,10 @@ public class VocabularyFacade : IVocabularyFacade
 {
     private IVocabularyModel _vocabularyModel;
     
-    // TODO: DI
-    public VocabularyFacade()
+    public VocabularyFacade(IVocabularyModel vocabularyModel)
     {
-        _vocabularyModel = new VocabularyModel();
+        _vocabularyModel = vocabularyModel;
     }
-
 
     public bool TryInitialize()
     {

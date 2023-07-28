@@ -1,7 +1,5 @@
 using VocabBot.Modules.CurrentState.Model;
-using VocabBot.Modules.CurrentState.Model.Data;
 using VocabBot.Modules.CurrentState.Model.Data.Impl;
-using VocabBot.Modules.CurrentState.Model.Impl;
 
 namespace VocabBot.Modules.CurrentState.Facade.Impl;
 
@@ -11,10 +9,9 @@ public class CurrentStateFacade : ICurrentStateFacade
 
     private ICurrentStateModel _currentStateModel;
     
-    // TODO: DI
-    public CurrentStateFacade()
+    public CurrentStateFacade(ICurrentStateModel currentStateModel)
     {
-        _currentStateModel = new CurrentStateModel();
+        _currentStateModel = currentStateModel;
         _currentStateModel.BotStarted += OnBotStarted;
     }
 
